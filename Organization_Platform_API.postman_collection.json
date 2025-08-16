@@ -1,0 +1,813 @@
+{
+	"info": {
+		"_postman_id": "12345678-1234-1234-1234-123456789012",
+		"name": "Organization Platform API",
+		"description": "Complete API testing for multi-tenant organization platform with JWT authentication, role-based access control, and invitation flows.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Setup & Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Application is healthy\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData.status).to.eql('UP');",
+									"});",
+									"",
+									"pm.test(\"Response time is less than 2000ms\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"actuator",
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Platform Admin",
+			"item": [
+				{
+					"name": "Platform Owner Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Login successful\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has access token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('accessToken');",
+									"    pm.collectionVariables.set(\"platformToken\", jsonData.accessToken);",
+									"    console.log(\"Platform token saved: \" + jsonData.accessToken.substring(0, 20) + \"...\");",
+									"});",
+									"",
+									"pm.test(\"Response time is less than 3000ms\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(3000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"owner@platform.local\",\n  \"password\": \"owner123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/platform/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"platform",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Organization",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Organization created successfully\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has organization details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"    pm.expect(jsonData).to.have.property('slug');",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.collectionVariables.set(\"orgId\", jsonData.id);",
+									"    console.log(\"Organization ID saved: \" + jsonData.id);",
+									"});",
+									"",
+									"pm.test(\"Organization has correct details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.name).to.eql('Acme Corporation');",
+									"    pm.expect(jsonData.slug).to.eql('acme-corp');",
+									"    pm.expect(jsonData.status).to.eql('ACTIVE');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{platformToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Acme Corporation\",\n  \"slug\": \"acme-corp\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/platform/orgs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"platform",
+								"orgs"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Invitation Flow",
+			"item": [
+				{
+					"name": "Create Invitation (Platform Owner)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Invitation created successfully\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has invitation details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('role');",
+									"    pm.collectionVariables.set(\"inviteId\", jsonData.id);",
+									"    console.log(\"Invitation ID saved: \" + jsonData.id);",
+									"});",
+									"",
+									"pm.test(\"Invitation has correct details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.email).to.eql('alice@acme.com');",
+									"    pm.expect(jsonData.status).to.eql('PENDING');",
+									"    pm.expect(jsonData.role.name).to.eql('ADMIN');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{platformToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"alice@acme.com\",\n  \"roleName\": \"ADMIN\",\n  \"tempPassword\": \"Welcome123\",\n  \"expiresHours\": 72\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orgs/{{orgId}}/invites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orgs",
+								"{{orgId}}",
+								"invites"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Invitation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Invitation accepted successfully\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response time is reasonable\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+									"});",
+									"",
+									"console.log(\"Invitation accepted for alice@acme.com\");"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"inviteId\": \"{{inviteId}}\",\n  \"email\": \"alice@acme.com\",\n  \"tempPassword\": \"Welcome123\",\n  \"newPassword\": \"SecurePassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/accept-invite",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"accept-invite"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Invitation (User)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"User invitation created successfully\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has invitation details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"    pm.expect(jsonData).to.have.property('role');",
+									"});",
+									"",
+									"pm.test(\"Invitation has correct details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.email).to.eql('bob@acme.com');",
+									"    pm.expect(jsonData.status).to.eql('PENDING');",
+									"    pm.expect(jsonData.role.name).to.eql('USER');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"bob@acme.com\",\n  \"roleName\": \"USER\",\n  \"tempPassword\": \"Welcome456\",\n  \"expiresHours\": 48\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orgs/{{orgId}}/invites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orgs",
+								"{{orgId}}",
+								"invites"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. User Authentication",
+			"item": [
+				{
+					"name": "User Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"User login successful\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has access token\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('accessToken');",
+									"    pm.collectionVariables.set(\"userToken\", jsonData.accessToken);",
+									"    console.log(\"User token saved: \" + jsonData.accessToken.substring(0, 20) + \"...\");",
+									"});",
+									"",
+									"pm.test(\"Response time is less than 3000ms\", function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(3000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"alice@acme.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Memberships",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Memberships retrieved successfully\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"User has at least one membership\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.length).to.be.at.least(1);",
+									"    ",
+									"    if (jsonData.length > 0) {",
+									"        pm.expect(jsonData[0]).to.have.property('id');",
+									"        pm.expect(jsonData[0]).to.have.property('orgId');",
+									"        pm.expect(jsonData[0]).to.have.property('userId');",
+									"        pm.expect(jsonData[0]).to.have.property('role');",
+									"        pm.expect(jsonData[0]).to.have.property('state');",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/me/memberships",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"me",
+								"memberships"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Error Testing",
+			"item": [
+				{
+					"name": "Invalid Platform Owner Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Invalid credentials rejected\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message provided\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData.error).to.include('Invalid credentials');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"owner@platform.local\",\n  \"password\": \"wrongpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/platform/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"platform",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid User Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Invalid user credentials rejected\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message provided\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData.error).to.include('Invalid credentials');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"alice@acme.com\",\n  \"password\": \"wrongpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unauthorized Access (No Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Unauthorized access blocked\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"roleName\": \"USER\",\n  \"tempPassword\": \"Welcome999\",\n  \"expiresHours\": 72\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orgs/{{orgId}}/invites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orgs",
+								"{{orgId}}",
+								"invites"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Duplicate Organization Slug",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Duplicate slug rejected\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message about duplicate slug\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"    pm.expect(jsonData.error).to.include('Slug already exists');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{platformToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Another Acme\",\n  \"slug\": \"acme-corp\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/platform/orgs",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"platform",
+								"orgs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Invitation Accept",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Invalid invitation rejected\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message provided\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('error');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"inviteId\": \"invalid-uuid\",\n  \"email\": \"test@example.com\",\n  \"tempPassword\": \"wrong\",\n  \"newPassword\": \"NewPass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/accept-invite",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"accept-invite"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "6. Role Testing",
+			"item": [
+				{
+					"name": "Create OWNER Role Invitation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"owner@acme.com\",\n  \"roleName\": \"OWNER\",\n  \"tempPassword\": \"Welcome789\",\n  \"expiresHours\": 72\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orgs/{{orgId}}/invites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orgs",
+								"{{orgId}}",
+								"invites"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create USER Role Invitation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"user@acme.com\",\n  \"roleName\": \"USER\",\n  \"tempPassword\": \"Welcome202\",\n  \"expiresHours\": 72\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/orgs/{{orgId}}/invites",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orgs",
+								"{{orgId}}",
+								"invites"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Collection-level pre-request script",
+					"console.log('Running request: ' + pm.info.requestName);"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Collection-level test script",
+					"pm.test('Response Content-Type is JSON', function () {",
+					"    if (pm.response.headers.get('Content-Type')) {",
+					"        pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+					"    }",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "platformToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "orgId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "inviteId",
+			"value": "",
+			"type": "string"
+		}
+	]
+} 
