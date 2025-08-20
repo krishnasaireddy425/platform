@@ -7,6 +7,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
@@ -15,15 +18,36 @@ public class OrgService {
     private final OrgMembershipRepo memberships;
     private final RoleRepo roles;
     private final UserRepo users;
+    private final InviteRepo invites;
     private final PasswordEncoder encoder;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    // Password generation characters (excluding ambiguous characters like 0, O, I,
+    // l)
+    private static final String PASSWORD_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+
+    // Default expiration: 72 hours (3 days)
+    private static final int DEFAULT_EXPIRY_HOURS = 72;
 
     public OrgService(OrganizationRepo orgs, OrgMembershipRepo memberships, RoleRepo roles,
-            UserRepo users, PasswordEncoder encoder) {
+            UserRepo users, InviteRepo invites, PasswordEncoder encoder) {
         this.orgs = orgs;
         this.memberships = memberships;
         this.roles = roles;
         this.users = users;
+        this.invites = invites;
         this.encoder = encoder;
+    }
+
+    /**
+     * Generates a secure random temporary password
+     */
+    private String generateTempPassword() {
+        StringBuilder password = new StringBuilder(12);
+        for (int i = 0; i < 12; i++) {
+            password.append(PASSWORD_CHARS.charAt(secureRandom.nextInt(PASSWORD_CHARS.length())));
+        }
+        return password.toString();
     }
 
     @Transactional
@@ -44,7 +68,7 @@ public class OrgService {
     }
 
     @Transactional
-    public User createOrgOwner(UUID orgId, String email, String tempPassword, String displayName) {
+    public OrgOwnerInviteResponse createOrgOwner(UUID orgId, String email, String displayName) {
         // Check if organization exists
         var org = orgs.findById(orgId)
                 .orElseThrow(() -> new BadRequestException("Organization not found"));
@@ -54,24 +78,57 @@ public class OrgService {
             throw new BadRequestException("User with this email already exists");
         }
 
-        // Create the user with temporary password
-        var user = new User();
-        user.setEmail(email.toLowerCase());
-        user.setTempPasswordHash(encoder.encode(tempPassword));
-        user.setPasswordHash(encoder.encode("PLACEHOLDER")); // Required field, will be set when user changes password
-        user.setMustChangePassword(true);
-        user.setDisplayName(displayName);
-        user = users.save(user);
+        // Check if there's already a pending invitation for this email in this org
+        if (invites.findByEmailAndOrgIdAndStatus(email.toLowerCase(), orgId, "PENDING").isPresent()) {
+            throw new BadRequestException("Pending invitation already exists for this email in this organization");
+        }
 
-        // Create org membership with OWNER role
+        // Get the OWNER role
         var roleOwner = roles.findByNameAndOrgIdIsNull("OWNER")
                 .orElseThrow(() -> new BadRequestException("OWNER role missing"));
-        var membership = new OrgMembership();
-        membership.setOrgId(orgId);
-        membership.setUserId(user.getId());
-        membership.setRole(roleOwner);
-        memberships.save(membership);
 
-        return user;
+        // Generate temporary password automatically
+        String tempPassword = generateTempPassword();
+
+        // Create the invitation (similar to regular invites)
+        var invite = new Invite();
+        invite.setOrgId(orgId);
+        invite.setEmail(email.toLowerCase());
+        invite.setRole(roleOwner);
+        invite.setTempPasswordHash(encoder.encode(tempPassword));
+        invite.setExpiresAt(Instant.now().plus(DEFAULT_EXPIRY_HOURS, ChronoUnit.HOURS));
+        invite.setInvitedByUserId(null); // Platform owner doesn't have a user ID
+        invite.setStatus("PENDING");
+        invite = invites.save(invite);
+
+        return new OrgOwnerInviteResponse(invite, tempPassword, displayName);
+    }
+
+    /**
+     * Response wrapper that includes the invitation, generated temporary password,
+     * and display name
+     */
+    public static class OrgOwnerInviteResponse {
+        private final Invite invitation;
+        private final String tempPassword;
+        private final String displayName;
+
+        public OrgOwnerInviteResponse(Invite invitation, String tempPassword, String displayName) {
+            this.invitation = invitation;
+            this.tempPassword = tempPassword;
+            this.displayName = displayName;
+        }
+
+        public Invite getInvitation() {
+            return invitation;
+        }
+
+        public String getTempPassword() {
+            return tempPassword;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
     }
 }

@@ -16,9 +16,11 @@ import java.util.UUID;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwt;
+    private final TokenBlacklistService tokenBlacklist;
 
-    public JwtAuthFilter(JwtService jwt) {
+    public JwtAuthFilter(JwtService jwt, TokenBlacklistService tokenBlacklist) {
         this.jwt = jwt;
+        this.tokenBlacklist = tokenBlacklist;
     }
 
     @Override
@@ -27,7 +29,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String header = req.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             try {
-                var jws = jwt.parse(header.substring(7));
+                String token = header.substring(7);
+
+                // Check if token is blacklisted
+                if (tokenBlacklist.isTokenBlacklisted(token)) {
+                    // Token is blacklisted - treat as unauthenticated
+                    chain.doFilter(req, res);
+                    return;
+                }
+
+                var jws = jwt.parse(token);
                 Claims c = jws.getPayload();
                 UUID id = UUID.fromString(c.getSubject());
                 String email = c.get("email", String.class);
